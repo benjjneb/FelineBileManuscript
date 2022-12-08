@@ -1,0 +1,119 @@
+---
+title: "Feline Bile Microbiome in Biliary Disease: Core Microbiome Analysis"
+author: "BJC"
+date: "12/7/2022"
+output: html_document
+---
+
+Load packages.
+```{r load-packages}
+library(decontam); packageVersion("decontam")
+library(ggplot2); packageVersion("ggplot2")
+library(dada2); packageVersion("dada2")
+```
+
+## Import Curated Data
+
+Note, the imported data has already been curated in the companion script FelineBileCuration.Rmd.
+
+```{r}
+load(file="../RDS/bile.rda")
+```
+
+## Using decontam to look for a core microbiome
+
+The decontam package can be used to discriminate between contaminants, which could be likely given the very low biomass (often below-limit-of-detection DNA concentrations) samples we are working with here, and "real" sequences actually present in the sample.
+
+We'll apply the decontam package to score ASVs as being more contaminant-like or real-sequence-like using the prevalence approach (see [the decontam manuscript](https://doi.org/10.1186/s40168-018-0605-2) for more detail).
+
+```{r}
+contam <- isContaminant(st.filt, neg=df$NegativeControl, method="prevalence")
+```
+
+Add some additional annotations to the data.frame output by `isContaminant`.
+
+```{r}
+sq.filt <- colnames(st.filt)
+if(!identical(sq.filt, rownames(contam))) stop("Mismatch between sq.filt and contam.")
+names(sq.filt) <- paste0("ASV", seq_along(sq.filt))
+contam$Phylum <- tax.filt[,"Phylum"]
+contam$Genus <- tax.filt[,"Genus"]
+contam$ASV <- names(sq.filt)
+contam$Prevalence <- cut(contam$prev, c(0, 10, 25, 45, 9999), labels=c("1-10", "11-25", "26-45", "45+"))
+contam$Abundance <- colSums(st.filt)
+rownames(contam) <- NULL # To avoid printing long sequences
+head(contam)
+```
+
+The "score" we will leverage is in the column `p`. The score ranges from 0 to 1, with high scores indicating a better match with a real-sample origin, and low scores a better match with a contaminant origin.
+
+Borrowing some code from [the reproducible analyses associated with the decontam manuscript](https://github.com/benjjneb/DecontamManuscript) to visualize the distribution of scores:
+```{r}
+histo <- ggplot(contam, aes(x=p)) + 
+  labs(x = 'decontam Score', y='Number of ASVs') + 
+  geom_histogram(binwidth=0.02)
+
+histo + facet_wrap(~Prevalence)
+```
+
+This distribution of scores provides little to no evidence for the presence of a core microbiome that is distinguishable from contamination. There is no high-score (real-sequence-like) mode in the scores, outside of perhaps the low prevalence (present in 1-10 samples) category. And, more concerning, the high-score fraction seems to decrease as the higher-prevalence ASVs are considered, which is where we would expect to observe the core microbiome if there was one.
+
+Given these results, and previous observations of very low DNA concentration in these samples, is to use the score to identify the best candidate non-contaminants, and investigate those further.
+
+```{r}
+i.top10 <- order(contam$p, decreasing=TRUE)[1:10]
+contam[i.top10,]
+```
+
+Only one of these top 10 candidate non-contaminant ASVs was classified at the Genus level, and a couple weren't even classified at the Phylum level.
+
+Inspect the [BLAST against nt] results for the top10 candidates, excluding "Uncultured/environmental sample sequences".
+
+```{r}
+dada2:::pfasta(sq.filt[contam$ASV[i.top10]], id=contam$Phylum[i.top10])
+```
+
+On Dec 7, 2022, the best hits for these top 10 candidate non-contaminant ASVs were:
+
+1. Felis catus Senzu DNA, chromosome: D2, American Shorthair breed
+2. [Ruminococcus] torques ATCC 27756 partial 16S rRNA gene
+3. Felis catus voucher N22b 12S ribosomal RNA gene, partial sequence; mitochondrial
+4. Felis catus Senzu DNA, chromosome: D2, American Shorthair breed
+5. Felis catus Senzu DNA, chromosome: D2, American Shorthair breed
+6. Felis catus mitochondrion, complete genome
+7. Felis catus Senzu DNA, chromosome: D2, American Shorthair breed
+8. Tyzzerella sp. strain 1XD42-41 16S ribosomal RNA gene, partial sequence
+9. Felis catus voucher N22b 12S ribosomal RNA gene, partial sequence; mitochondrial
+10. Felis catus Senzu DNA, chromosome: D2, American Shorthair breed
+
+Candidates 2 and 8 are high-quality (100\% coverage, >97\%) hits to genuine bacterial sequences, but all others are clearly derived from the cat itself, likely off-target amplification of the mitochondria.
+
+The prevalence score from decontam can be interpreted as a p-value. Let's do that here, and perform Benjamini-Hochberg false-discovery rate correction to get an idea how strong the statistical evidence is supporting these top candidates.
+
+```{r}
+sort(p.adjust(1-contam$p, method="BH"))[1:10]
+```
+
+After FDR correction, the "adjusted p-value" is far from standard significance thresholds.
+
+In sum, the totality of these results provides little to no evidence non-contaminant ASVs in these samples that can't be explained by off-target amplification of cat DNA. Thus, we conclude that a core microbiome does not exist in feline bile.
+
+That said, this analysis does not rule out transient or patchy opportunistic bacterial colonization of feline bile.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
