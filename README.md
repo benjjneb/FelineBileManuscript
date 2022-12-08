@@ -4,7 +4,8 @@ This repository hosts the reproducible workflow that performed the analyses pres
 
 The Rmarkdown analyses have been rendered into html format, and can be viewed in your web browser:
 
-* [Curation of sequence and sample data](Analyses/FelineBile_Curate.html).
-* Investigation of [a core microbiome in feline bile](Analyses/FelineBile_Core.html).
+* [Curation of sequence and sample data](https://benjjneb.github.io/FelineBileManuscript/Analyses/FelineBile_Curate.html).
+* Investigation of [a core microbiome in feline bile](https://benjjneb.github.io/FelineBileManuscript/Analyses/FelineBile_Core.html).
+* Comparison of _culture, clinical and 16S results in cats with biliary disease_.
 
 
