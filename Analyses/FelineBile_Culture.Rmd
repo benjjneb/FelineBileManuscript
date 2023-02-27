@@ -1,0 +1,152 @@
+---
+title: 'Feline Bile Microbiome in Biliary Disease: Curating and Comparing Microscopy, Culture, and Library Size Results
+  Results'
+author: "BJC"
+date: "2/16/2023"
+output: html_document
+---
+
+Load packages.
+
+```{r}
+library(decontam); packageVersion("decontam")
+library(ggplot2); packageVersion("ggplot2")
+```
+
+## Import Curated Data
+
+Note, the imported data has already been curated in the companion script FelineBileCuration.Rmd.
+
+```{r}
+load(file="../RDS/bile.rda")
+```
+
+## Inspecting and Curating Microscopy and Culture Results
+
+These bile samples were subjected to a set of clinical microbiological methods to identify Bactibilia based on microscopy, and to identify the presence of several species of bacteria based on culture results (see manuscript for details of the microbiological methods).
+
+The culture and pathology results recorded are in the `$Bactibilia`, `$Organisms`, and `BacteriaPLUS.BacteriaNEG` columns in `df`. Start by inspecting the `$Bactibilia` designation over the samples types.
+
+```{r}
+table(SampleType=df$SampleType, Bactibilia=df$Bactibilia, useNA="ifany")
+```
+
+Only six samples in our curated set were identified as having Bactibilia. `NA` designations were given to all the negative controls, and one real sample.
+
+Making a new logical column that encodes these results.
+
+```{r}
+df$Bactibilia_Positive <- df$Bactibilia == "Bactibilia"
+table(Bactibilia=df$Bactibilia, Bactibilia_Positive=df$Bactibilia_Positive, useNA="ifany")
+```
+
+Look correct.
+
+Now inspect the `$Organisms` designation over the sample types.
+
+```{r}
+table(df$SampleType, df$Organisms, useNA="ifany")
+```
+
+All negative control samples have an `NA` designation. Of the bile samples, 47 received a `"Noculturedoragnisms"` designation, while the rest were assigned strings corresponding to the taxa for which they were positive. If culture-positive for multiple taxa (`E.coli`, `clostridiumspp`, )
+
+Cleaning this data up by creating individual columns for each organism that was tested for by culture (e.g. `$Ecoli`), and an additional column `$Culture_Positive` that is TRUE/FALSE depending on if any organism was successfully cultured from it (and `NA` if not tested).
+
+```{r}
+str.cult <- c("E.coli", "E.coli.clostridiumspp.", "E.coli.enterococcus", 
+              "E.coli.Streptococcus", "Peptostreptococcus", "Staphepidermis")
+df$Culture_Positive <- df$Organisms %in% str.cult
+df$Culture_Positive[is.na(df$Organisms) | df$Organisms %in% "Nocultureperformed"] <- NA
+table(Organisms=df$Organisms, Culture_Positive=df$Culture_Positive, useNA="ifany")
+```
+
+Looks correct.
+
+```{r}
+str.ecoli <- "E.coli"
+str.clost <- "clostridiumspp."
+str.enter <- "enterococcus"
+str.strep <- "Streptococcus"
+str.pepto <- "Peptostreptococcus"
+df$Ecoli <- grepl(str.ecoli, df$Organisms)
+df$Clost <- grepl(str.clost, df$Organisms)
+df$Enter <- grepl(str.enter, df$Organisms)
+df$Strep <- grepl(str.strep, df$Organisms)
+df$Pepto <- grepl(str.pepto, df$Organisms)
+# Set to NA all those where no culture was performed
+df[is.na(df$Culture_Positive), c("Ecoli", "Clost", "Enter", "Strep", "Pepto")] <- NA
+df[,c("Organisms", "Ecoli", "Clost", "Enter", "Strep", "Pepto")]
+```
+
+Looks correct.
+
+Finally, let's inspect the relationship between the `$Culture_Positive` results and the `$Bactibilia` results.
+
+```{r}
+table(Culture_Positive=df$Culture_Positive, Bactibilia_Positive=df$Bactibilia_Positive, useNA="ifany")
+```
+
+Highly concordant, except for two samples in which culture detected a bacteria and Bactibilia was not detected. Inspecting those rows.
+
+```{r}
+i.inspect <- which(df$Culture_Positive %in% TRUE & !df$Bactibilia_Positive)
+df[i.inspect, c("SampleType", "Bactibilia_Positive", "Culture_Positive", "Organisms")]
+```
+
+Interesting note: These are the only two culture positive samples in which `E. coli` was not detected by culture, and thus the culture positive designation relied on culture results for other bacteria.
+
+```{r}
+i.cultpos <- which(df$Culture_Positive %in% TRUE)
+table(Ecoli=df[i.cultpos, "Ecoli"], Bactibilia=df[i.cultpos, "Bactibilia_Positive"], useNA="ifany")
+```
+
+## Investigate Library Size versus Culture
+
+Do culture positive samples show any evidence of higher library sizes? (We think that culture might indicate infection, and thus a higher microbial load, which could manifest as higher library sizes, although perhaps only if most samples are nearly sterile and thus the library preparation step fails to make equimolar DNA libraries across samples.)
+
+```{r}
+ggplot(data=df[df$SampleType == "Positive",], 
+       aes(x=Culture_Positive, y=LibrarySize)) + 
+       geom_boxplot() + geom_jitter(width=0.1)
+```
+
+That is at least suggestive. Let's discriminate the E. coli positive samples that lined up perfectly with the Bactibilia designation.
+
+```{r}
+ggplot(data=df[df$SampleType == "Positive",], 
+       aes(x=Culture_Positive, y=LibrarySize, color=Ecoli)) + 
+       geom_boxplot() + geom_jitter(width=0.1)
+```
+
+Small number alert, but the Ecoli positive samples trend even higher in library size. By the "eye test" I suspect it might even reach statistical significance.
+
+```{r}
+t.test(df$LibrarySize[df$Ecoli & df$SampleType %in% "Positive"],
+       df$LibrarySize[!df$Ecoli & df$SampleType %in% "Positive"],
+       alternative="greater", na.action="na.omit")
+```
+
+```{r}
+wilcox.test(df$LibrarySize[df$Ecoli & df$SampleType %in% "Positive"],
+            df$LibrarySize[!df$Ecoli & df$SampleType %in% "Positive"],
+            alternative="greater", na.action="na.omit")
+```
+
+Naive two-sample stats agrees.
+
+## Save reults and sessionInfo
+
+Saving the current results for the next step of inspecting agreement with the 16S sequencing.
+
+```{r}
+if(!identical(rownames(tax.filt), colnames(st.filt))) stop("Table mismatch: tax.filt, st.filt")
+if(!identical(rownames(df), rownames(st))) stop("Mismatched samples in df and st.")
+if(!identical(rownames(df), rownames(st.filt))) stop("Mismatched samples in df and st.")
+save(st, st.filt, tax.filt, df, file="../RDS/bile_curated.rda")
+```
+
+```{r}
+sessionInfo()
+```
+
+

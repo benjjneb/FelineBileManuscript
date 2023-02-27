@@ -67,7 +67,7 @@ contam[i.top10,]
 
 Only one of these top 10 candidate non-contaminant ASVs was classified at the Genus level, and a couple weren't even classified at the Phylum level.
 
-Inspect the [BLAST against nt] results for the top10 candidates, excluding "Uncultured/environmental sample sequences".
+Inspect the [BLAST against nt](https://blast.ncbi.nlm.nih.gov/Blast.cgi?PROGRAM=blastn&BLAST_SPEC=GeoBlast&PAGE_TYPE=BlastSearch) results for the top10 candidates, excluding "Uncultured/environmental sample sequences".
 
 ```{r}
 dada2:::pfasta(sq.filt[contam$ASV[i.top10]], id=contam$Phylum[i.top10])
@@ -86,7 +86,7 @@ On Dec 7, 2022, the best hits for these top 10 candidate non-contaminant ASVs we
 9. Felis catus voucher N22b 12S ribosomal RNA gene, partial sequence; mitochondrial
 10. Felis catus Senzu DNA, chromosome: D2, American Shorthair breed
 
-Candidates 2 and 8 are high-quality (100\% coverage, >97\%) hits to genuine bacterial sequences, but all others are clearly derived from the cat itself, likely off-target amplification of the mitochondria.
+Candidates 2 and 8 are high-quality (100\% coverage, >97\% identity) hits to genuine bacterial sequences, but all others are clearly derived from the cat itself, likely off-target amplification of the mitochondria.
 
 The prevalence score from decontam can be interpreted as a p-value. Let's do that here, and perform Benjamini-Hochberg false-discovery rate correction to get an idea how strong the statistical evidence is supporting these top candidates.
 
@@ -100,6 +100,9 @@ In sum, the totality of these results provides little to no evidence non-contami
 
 That said, this analysis does not rule out transient or patchy opportunistic bacterial colonization of feline bile.
 
+```{r}
+sessionInfo()
+```
 
 
 
