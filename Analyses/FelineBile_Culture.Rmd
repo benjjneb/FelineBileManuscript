@@ -1,6 +1,5 @@
 ---
-title: 'Feline Bile Microbiome in Biliary Disease: Curating and Comparing Microscopy, Culture, and Library Size Results
-  Results'
+title: 'Feline Bile Microbiome in Biliary Disease: Curating and Comparing Microscopy, Culture, and Library Size Results'
 author: "BJC"
 date: "2/16/2023"
 output: html_document
@@ -15,7 +14,7 @@ library(ggplot2); packageVersion("ggplot2")
 
 ## Import Curated Data
 
-Note, the imported data has already been curated in the companion script FelineBileCuration.Rmd.
+Note, the imported data has already been curated in the companion script `FelineBileCuration.Rmd`.
 
 ```{r}
 load(file="../RDS/bile.rda")

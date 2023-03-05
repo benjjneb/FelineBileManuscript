@@ -1,0 +1,140 @@
+---
+title: "Feline Bile Microbiome in Biliary Disease: Comparing Culture and 16S Sequencing Results"
+author: "BJC"
+date: '2023-02-27'
+output: html_document
+---
+
+Load packages.
+
+```{r}
+library(decontam); packageVersion("decontam")
+library(ggplot2); packageVersion("ggplot2")
+```
+
+## Import Curated Data
+
+Note, the imported data has already been curated in the companion scripts `FelineBileCuration.Rmd` and `FelineBileCulture.Rmd`.
+
+```{r}
+load(file="../RDS/bile_curated.rda")
+if(!identical(rownames(tax.filt), colnames(st.filt))) stop("Table mismatch: tax.filt, st.filt")
+if(!identical(rownames(df), rownames(st))) stop("Mismatched samples in df and st.")
+if(!identical(rownames(df), rownames(st.filt))) stop("Mismatched samples in df and st.")
+ft.filt <- sweep(st.filt, 1, rowSums(st.filt), "/")
+```
+
+## Taxon-by-Taxon Comparison of Culture and 16S Results
+
+In terms of the specific taxa detected by culture, is there any concordance with the frequencies of those same taxa as measured by the 16S community sequencing approach? We'll start this investigation by augmenting the sample metadata with the proportion of each of the taxa tested for by culture -- *E. coli*, *Clostridium spp.*, *Enterococcus*, *Streptococcus* and *Peptostreptococcus* -- as measured by 16S sequencing. Since each of these is effectively a genus-level taxon we will use the Silva taxonomic assignments at the genus level to identify the corresponding ASVs. *E. coli* appears as the genus *Escherichia-Shigella* in these taxonomic assignments. The true taxonomic range of the culture assay for *Clostridium spp.* is rather unclear, but we will associate it with the genus designation of *Clostridium sensu stricto 1*.
+
+```{r}
+is.ecoli <- tax.filt[,"Genus"] %in% "Escherichia-Shigella"
+is.clost <- tax.filt[,"Genus"] %in% "Clostridium sensu stricto 1"
+is.entero <- tax.filt[,"Genus"] %in% "Enterococcus"
+is.strep <- tax.filt[,"Genus"] %in% "Streptococcus"
+is.pepto <- tax.filt[,"Genus"] %in% "Peptostreptococcus"
+c(Ecoli=sum(is.ecoli), Clost=sum(is.clost), Entero=sum(is.entero), Strep=sum(is.strep), Pepto=sum(is.pepto))
+```
+
+All of these genera except for *Peptostreptococcus* were detected in the 16S sequencing results. With a relatively small number of ASVs representing each genus. Inspecting the distribution of the 16S-measured proportions of these genera across the samples, and relative to the culture results.
+
+```{r}
+df$EcoliProportion <- rowSums(ft.filt[,is.ecoli])
+df$ClostProportion <- rowSums(ft.filt[,is.clost])
+df$EnteroProportion <- rowSums(ft.filt[,is.entero])
+df$StrepProportion <- rowSums(ft.filt[,is.strep])
+df$PeptoProportion <- rowSums(ft.filt[,is.pepto])
+```
+
+```{r}
+ggplot(data=df[order(df$EcoliProportion),], 
+       aes(x=seq(nrow(df)), y=EcoliProportion, color=Ecoli)) +
+  geom_point() +
+  theme(axis.title.x=element_blank()) + 
+  ylab("Ecoli Proportion (16S)") +
+  labs(color="Ecoli Present (Culture)")
+```
+
+Strong concordance between culture positivity for *E. coli* and measured 16S proportion. One outlier sample.
+
+```{r}
+ggplot(data=df[order(df$ClostProportion),], 
+       aes(x=seq(nrow(df)), y=ClostProportion, color=Clost)) +
+  geom_point() +
+  theme(axis.title.x=element_blank()) + 
+  ylab("Clostridium Proportion (16S)") +
+  labs(color="Clostridium Present (Culture)")
+```
+
+Agreement again, albeit there was only one sample in which *Clostridium* was detected by culture.
+
+```{r}
+ggplot(data=df[order(df$EnteroProportion),], 
+       aes(x=seq(nrow(df)), y=EnteroProportion, color=Enter)) +
+  geom_point() +
+  theme(axis.title.x=element_blank()) + 
+  ylab("Enterococcus Proportion (16S)") +
+  labs(color="Enterococcus Present (Culture)")
+```
+
+No concordance here, although again only one culture-positive sample.
+
+```{r}
+ggplot(data=df[order(df$StrepProportion),], 
+       aes(x=seq(nrow(df)), y=StrepProportion, color=Strep)) +
+  geom_point() +
+  theme(axis.title.x=element_blank()) + 
+  ylab("Streptococcus Proportion (16S)") +
+  labs(color="Streptococcus Present (Culture)")
+```
+
+No concordance, but just one culture-positive sample.
+
+And as a reminder, *Peptostreptococcus* was not identified in the 16S data.
+
+Overall, the culture positivity results and the 16S relative abundance results are largely concordant, especially for *E. coli*, the only taxon for which multiple samples were positive by culture.
+
+## Community-level Comparison of Culture and 16S Results
+
+We now consider the community-level 16S results, and compare them to our culture results. We start by looking at "alpha-diversity" in the 16S sequencing data. Our expectation is that most of the samples are just contamination, and will have a relatively consistent and high level of diversity reflecting the spectrum of contaminants, but that some samples with a legitimate infection will be lower in diversity because they are dominated by one or a small number of real species infecting the bile.
+
+Calcluate Shannon and Simpson diversities for all our samples.
+
+```{r}
+if(!identical(rownames(df), rownames(ft.filt))) stop("Table mismatch: df, ft")
+df$Shannon <- apply(ft.filt, 1, function(x) sum(-x*log(x), na.rm=TRUE))
+df$Simpson <- apply(ft.filt, 1, function(x) 1-sum(x*x))
+ggplot(data=df, aes(x=Shannon, y=Simpson, color=NegativeControl)) + geom_point()
+```
+
+As expected there is a lot of correlation between the two diversity measures, especially in the low-diversity samples that seem to be separating from the negative control samples (and the bulk of the bile samples).
+
+Looking into the relationship between diversity and culture positivity, while also plotting library size to check on any influence from uncertainly measured (low depth) samples.
+
+```{r}
+ggplot(data=df[seq(nrow(df), 1, -1),], aes(x=Shannon, y=LibrarySize, color=Culture_Positive)) + geom_point() + xlab("Shannon Diversity (16S)")
+```
+
+That is strikingly clear. Save for two outliers, alpha-diversity separates samples into two modes: A low-diversity mode that is entirely culture-positive, and a high-diversity mode that is entirely (save the one exception) culture-negative and that includes all of the negative control samples. Library size is not confounding this signal.
+
+Let's check on those two outlier culture-positive samples.
+
+```{r}
+df[df$Culture_Positive %in% TRUE & df$Shannon > 2, 
+   c("SampleType", "Organisms", "Bactibilia", "Culture_Positive", "Ecoli", "Shannon", "LibrarySize")]
+```
+
+As a reminder, Bactibilia and *E. coli* culture positivity are fully concordant, and there are two samples which were culture positive for some bacteria, but not for *E. coli*:
+
+```{r}
+table(Ecoli_Positive=df$Ecoli, Bactibilia_Positive=df$Bactibilia_Positive)
+```
+
+```{r}
+table(Ecoli_Positive=df$Ecoli, Culture_Positive=df$Culture_Positive)
+```
+
+Thus, these two low-diversity "culture positive" outliers are esactly those two samples that were culture-positive samples but no *E. coli* was  detected by culture, and Bactibilia was not detected by microscopy. Or, put another way, there is full concordance in identifying the same set of six samples by microscopic identification of bactibilia, by culture-based detection of *E. coli*, and by 16S-based identification of low-diversity samples.
+
+
