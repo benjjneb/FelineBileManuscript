@@ -10,6 +10,7 @@ Load packages.
 ```{r}
 library(decontam); packageVersion("decontam")
 library(ggplot2); packageVersion("ggplot2")
+library(phyloseq); packageVersion("phyloseq")
 ```
 
 ## Import Curated Data
@@ -99,6 +100,8 @@ Overall, the culture positivity results and the 16S relative abundance results a
 
 We now consider the community-level 16S results, and compare them to our culture results. We start by looking at "alpha-diversity" in the 16S sequencing data. Our expectation is that most of the samples are just contamination, and will have a relatively consistent and high level of diversity reflecting the spectrum of contaminants, but that some samples with a legitimate infection will be lower in diversity because they are dominated by one or a small number of real species infecting the bile.
 
+### Alpha-diversity
+
 Calcluate Shannon and Simpson diversities for all our samples.
 
 ```{r}
@@ -136,5 +139,66 @@ table(Ecoli_Positive=df$Ecoli, Culture_Positive=df$Culture_Positive)
 ```
 
 Thus, these two low-diversity "culture positive" outliers are esactly those two samples that were culture-positive samples but no *E. coli* was  detected by culture, and Bactibilia was not detected by microscopy. Or, put another way, there is full concordance in identifying the same set of six samples by microscopic identification of bactibilia, by culture-based detection of *E. coli*, and by 16S-based identification of low-diversity samples.
+
+For the record, the six samples are:
+```{r}
+sam.infected <- df$SampleID[df$Ecoli %in% TRUE]
+sam.infected
+```
+
+### Beta-diversity
+
+We'll also take a look at how the samples organize using ordination and the Bray-Curtis community dissimilarity metric.
+
+```{r}
+ps <- phyloseq(sample_data(df), 
+               otu_table(ft.filt, taxa_are_rows=FALSE), 
+               tax_table(tax.filt))
+ord <- ordinate(ps, method="MDS", distance="bray")
+f <- plot_ordination(ps, ord, color="Ecoli") + facet_wrap(~SampleType)
+f
+```
+
+The six samples identified by culture, microscopy and alpha-diversity also stand out in the Bray-Curtis ordination. It is also clear that the negative control samples intermingle with the rest of the bile (`Positive`) samples, supporting the idea that those samples are mostly just off-target amplification/contamination, with little to no real signal.
+
+### Composition
+
+Finally, what is in the putatitive contaminant background? And what is in those six standout samples?
+
+```{r}
+ps.contam <- subset_samples(ps, !Ecoli %in% TRUE)
+ps.infect <- subset_samples(ps, Ecoli %in% TRUE)
+genera.tot <- sort(tapply(colSums(ft.filt), tax.filt[,"Genus"], sum), decreasing=TRUE)
+genera.contam <- sort(tapply(colSums(ft.filt[!df$Ecoli %in% TRUE,]), tax.filt[,"Genus"], sum), decreasing=TRUE)
+genera.infect <- sort(tapply(colSums(ft.filt[df$Ecoli %in% TRUE,]), tax.filt[,"Genus"], sum), decreasing=TRUE)
+```
+
+```{r}
+head(genera.contam, n=20)
+```
+
+*Anoxybacillus* is the most abundant across the "non-infected" samples, followed by a ong tail of other genera.
+
+```{r}
+head(genera.infect, n=10)
+```
+
+These samples look very different. As might be expected (since all six were culture-positive for *E. coli*), `Esherichia-Shigella` is the most abundant genus. This is followed by 6-7 other genera, before dropping off dramatically to minimal levels.
+
+Create a bar plot of the composition in the six "infected" samples, keeping just the genera with >0.5% average abundance:
+```{r}
+genera.infect.keep <- names(genera.infect)[genera.infect/6 > 0.005]
+ps.infect.top <- subset_taxa(ps.infect, Genus %in% genera.infect.keep)
+plot_bar(ps.infect.top, fill="Genus")
+```
+
+Interestingly, while *E. coli* is the largest contributor to most of these samples, it is often appearing as what might be a co-infection with 1-3 other bacterial genera. And in sample `716-520`, it is not *E. coli* that dominates the sample, but rather a mixture of *Bacillus* and *Rothia*.
+
+
+```{r}
+sessionInfo()
+```
+
+
 
 
