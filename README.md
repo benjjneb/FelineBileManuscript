@@ -7,5 +7,4 @@ The Rmarkdown analyses have been rendered into html format, and can be viewed in
 * [Curation of sequence and sample data](https://benjjneb.github.io/FelineBileManuscript/Analyses/FelineBile_Curate.html).
 * Investigation of [a core microbiome in feline bile](https://benjjneb.github.io/FelineBileManuscript/Analyses/FelineBile_Core.html).
 * [Curation and investigation of microscopy and culture results from feline bile](https://benjjneb.github.io/FelineBileManuscript/Analyses/FelineBile_Culture.html).
-* Comparison of _culture and 16S results in cats with biliary disease_.
-
+* Comparison of [culture and 16S results in cats with biliary disease](https://benjjneb.github.io/FelineBileManuscript/Analyses/FelineBile_16S.html).
