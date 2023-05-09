@@ -1,7 +1,7 @@
 ---
 title: "Feline Bile Microbiome in Biliary Disease: Comparing Culture and 16S Sequencing Results"
 author: "BJC"
-date: '2023-02-27'
+date: '2023-05-29'
 output: html_document
 ---
 
@@ -138,12 +138,27 @@ table(Ecoli_Positive=df$Ecoli, Bactibilia_Positive=df$Bactibilia_Positive)
 table(Ecoli_Positive=df$Ecoli, Culture_Positive=df$Culture_Positive)
 ```
 
-Thus, these two low-diversity "culture positive" outliers are esactly those two samples that were culture-positive samples but no *E. coli* was  detected by culture, and Bactibilia was not detected by microscopy. Or, put another way, there is full concordance in identifying the same set of six samples by microscopic identification of bactibilia, by culture-based detection of *E. coli*, and by 16S-based identification of low-diversity samples.
+Thus, these two low-diversity "culture positive" outliers are exactly those two samples that were culture-positive samples but no *E. coli* was  detected by culture, and Bactibilia was not detected by microscopy. Or, put another way, there is full concordance in identifying the same set of six samples by microscopic identification of bactibilia, by culture-based detection of *E. coli*, and by 16S-based identification of low-diversity samples.
 
 For the record, the six samples are:
 ```{r}
 sam.infected <- df$SampleID[df$Ecoli %in% TRUE]
 sam.infected
+```
+
+Creating the publication formatted and labelled figure.
+
+```{r}
+df$Fig3 <- "Bile Samples"
+df$Fig3[df$NegativeControl] <- "Negative Control Samples"
+fig3 <- ggplot(data=df[seq(nrow(df), 1, -1),],
+               aes(x=Shannon, y=LibrarySize, color=Ecoli)) + 
+  geom_point() + 
+  facet_wrap(~Fig3) +
+  xlab("Shannon Diversity (16S)") + ylab("Sequencing Depth") +
+  theme_bw()
+fig3
+## ggsave("../Figures/Figure3.pdf", fig3, width=6, height=4, units="in") ## uncomment to regenerate pdf figure
 ```
 
 ### Beta-diversity
@@ -160,6 +175,44 @@ f
 ```
 
 The six samples identified by culture, microscopy and alpha-diversity also stand out in the Bray-Curtis ordination. It is also clear that the negative control samples intermingle with the rest of the bile (`Positive`) samples, supporting the idea that those samples are mostly just off-target amplification/contamination, with little to no real signal.
+
+Now combining this into one panel with publication formatting and labeling.
+
+```{r}
+df$Fig2 <- "Negative Control" # Technical negative controls, all types
+df$Fig2[df$Patient.Control %in% "Control"] <- "Control case" # Real samples, from healthy "control" cats
+df$Fig2[df$Patient.Control %in% "Patient"] <- "Clinical case" # Real samples, from clinical cases
+df$Fig2[df$Patient.Control %in% "Patient" & df$Ecoli] <- "Clinical case (E. coli culture positive)" # Real samples, from clinical cases, that were E. coli positive
+df$Fig2 <- factor(df$Fig2, levels=c("Negative Control", "Control case", "Clinical case", "Clinical case (E. coli culture positive)"))
+# Sanity check
+table(df$Fig2, df$Patient.Control, useNA="ifany")
+table(df$Fig2, df$NegativeControl, useNA="ifany")
+```
+
+Sanity check passed.
+
+```{r}
+scale.fig2 <- scale_color_manual(values=c("Negative Control"="black", 
+                                          "Control case"="dodgerblue", 
+                                          "Clinical case"="darkorange3",
+                                          "Clinical case (E. coli culture positive)"="chartreuse3"))
+
+ps.fig2 <- phyloseq(sample_data(df), 
+               otu_table(ft.filt, taxa_are_rows=FALSE), 
+               tax_table(tax.filt))
+ord.fig2 <- ordinate(ps.fig2, method="MDS", distance="bray")
+fig2 <- plot_ordination(ps.fig2, ord.fig2, color="Fig2") +
+  scale.fig2 +
+  theme_bw() + 
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.7, 0.84),
+        legend.spacing.y = unit(0.0, 'in'),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.box.spacing = unit(0.0, "in"))
+fig2
+## ggsave("../Figures/Figure2.pdf", fig2, width=6, height=4, units="in") ## uncomment to regenerate figure 
+```
 
 ### Composition
 
